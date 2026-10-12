@@ -2,10 +2,7 @@ import { Hono } from "hono";
 import { PrismaClient } from "@prisma/client/edge";
 import { withAccelerate } from "@prisma/extension-accelerate";
 import { verify } from "hono/jwt";
-import {
-  createBlogSchema,
-  updateBlogSchema,
-} from "@harshchalwadi/medium-app";
+import { createBlogSchema, updateBlogSchema } from "../schemas";
 
 const blog = new Hono<{
   Bindings: {
