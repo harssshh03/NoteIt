@@ -1,38 +1,75 @@
+
 import { Link } from "react-router-dom";
-import { DeleteButton } from "@/components/ui/delete-button";
-import { formatDate, readingTime } from "@/lib/formatdate";
+import { CalendarDays, Trash2 } from "lucide-react";
+import type { Blog } from "@/hooks/useBlogs";
+import { Button } from "@/components/ui/button";
 
 interface BlogCardProps {
   id: string;
-  authorName: string;
   title: string;
   content: string;
+  authorName: string;
   publishedDate: string;
-  onDelete?: (id: string) => void;
+  onDelete?: (id: string) => Promise<boolean>;
 }
 
-export default function BlogCard({ id, authorName, title, content, publishedDate, onDelete }: BlogCardProps) {
+export default function BlogCard({
+  id,
+  title,
+  content,
+  authorName,
+  publishedDate,
+  onDelete,
+}: BlogCardProps) {
+  const date = publishedDate
+    ? new Date(publishedDate).toLocaleDateString("en-IN", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      })
+    : "Date unavailable";
+
+  const preview =
+    content.length > 180 ? `${content.slice(0, 180)}...` : content;
+
   return (
-    <article className="relative">
-      <Link to={`/blog/${id}`} className="block py-5 pr-12">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-          <span className="flex items-center gap-2">
-            <span className="flex size-6 items-center justify-center rounded-full bg-secondary text-xs font-medium text-secondary-foreground">
-              {authorName[0]?.toUpperCase()}
-            </span>
-            <span className="font-medium text-foreground">{authorName}</span>
-          </span>
-          <time>{formatDate(publishedDate)}</time>
-          <span>{readingTime(content)} min read</span>
-        </div>
-        <h2 className="mt-2 font-serif text-xl font-semibold leading-snug tracking-tight sm:text-2xl">{title}</h2>
-        <p className="mt-1.5 line-clamp-2 font-serif text-base leading-7 text-muted-foreground">{content}</p>
-      </Link>
+    <article className="flex items-start justify-between gap-4 py-6">
+      <div className="min-w-0 flex-1">
+        <p className="text-sm text-muted-foreground">{authorName}</p>
+
+        <Link
+          to={`/blog/${encodeURIComponent(id)}`}
+          className="mt-2 block"
+        >
+          <h2 className="break-words font-serif text-xl font-semibold hover:underline sm:text-2xl">
+            {title}
+          </h2>
+        </Link>
+
+        <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-muted-foreground">
+          {preview}
+        </p>
+
+        <p className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
+          <CalendarDays className="size-3.5" />
+          {date}
+        </p>
+      </div>
 
       {onDelete && (
-        <div className="absolute right-0 top-4 z-10">
-          <DeleteButton onConfirm={() => onDelete(id)} />
-        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label={`Delete ${title}`}
+          onClick={async () => {
+            if (window.confirm(`Delete "${title}"?`)) {
+              await onDelete(id);
+            }
+          }}
+        >
+          <Trash2 className="size-4 text-destructive" />
+        </Button>
       )}
     </article>
   );

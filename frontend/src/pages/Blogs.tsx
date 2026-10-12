@@ -1,120 +1,156 @@
+
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { PenSquare, Search } from "lucide-react";
+
+import { useBlogs, useMyBlogs, type Blog } from "@/hooks/useBlogs";
 import BlogCard from "@/components/blog-card";
 import { DashboardLayout } from "@/components/dashboard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useBlogs } from "@/hooks/useBlogs";
-import { useMyBlogs } from "@/hooks/usemyblogs";
-
-interface BlogItem {
-  id: string | number;
-  title: string;
-  content: string;
-  publishedDate: string;
-  author?: { name: string };
-}
 
 function BlogList({
   blogs,
-  loading = false,
-  empty,
+  loading,
+  error,
   onDelete,
 }: {
-  blogs: BlogItem[];
-  loading?: boolean;
-  empty?: React.ReactNode;
-  onDelete?: (id: string) => void;
+  blogs: Blog[];
+  loading: boolean;
+  error: string | null;
+  onDelete?: (id: string) => Promise<boolean>;
 }) {
   const [query, setQuery] = useState("");
-  const filtered = blogs.filter((b) => b.title.toLowerCase().includes(query.toLowerCase()));
+
+  const filteredBlogs = blogs.filter((blog) =>
+    blog.title.toLowerCase().includes(query.toLowerCase())
+  );
 
   return (
-    <>
-      <div className="relative mt-4">
+    <div>
+      <div className="relative mt-6">
         <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           placeholder="Search by title"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(event) => setQuery(event.target.value)}
           className="pl-9"
         />
       </div>
 
-      <div className="mt-4 divide-y border-t">
-        {loading &&
-          Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="space-y-2 py-5">
-              <Skeleton className="h-4 w-1/3" />
-              <Skeleton className="h-6 w-3/4" />
+      {loading && (
+        <div className="mt-4 space-y-5">
+          {[1, 2, 3].map((item) => (
+            <div key={item} className="space-y-3 py-5">
+              <Skeleton className="h-5 w-1/3" />
+              <Skeleton className="h-8 w-3/4" />
               <Skeleton className="h-4 w-full" />
             </div>
           ))}
-
-        {filtered.map((blog) => (
-          <BlogCard
-            key={blog.id}
-            id={String(blog.id)}
-            authorName={blog.author?.name || "Unknown Author"}
-            title={blog.title}
-            content={blog.content}
-            publishedDate={blog.publishedDate}
-            onDelete={onDelete}
-          />
-        ))}
-      </div>
-
-      {!loading && blogs.length > 0 && filtered.length === 0 && (
-        <p className="py-10 text-center text-muted-foreground">No posts match your search.</p>
+        </div>
       )}
-      {!loading && blogs.length === 0 && empty}
-    </>
+
+      {!loading && error && (
+        <div className="py-10 text-center">
+          <p className="text-destructive">{error}</p>
+        </div>
+      )}
+
+      {!loading && !error && filteredBlogs.length > 0 && (
+        <div className="mt-4 divide-y border-t">
+          {filteredBlogs.map((blog) => (
+            <BlogCard
+              key={blog.id}
+              id={blog.id}
+              title={blog.title}
+              content={blog.content}
+              authorName={blog.author?.name ?? "Unknown Author"}
+              publishedDate={blog.publishedDate}
+              onDelete={onDelete}
+            />
+          ))}
+        </div>
+      )}
+
+      {!loading && !error && filteredBlogs.length === 0 && (
+        <div className="py-12 text-center text-muted-foreground">
+          {blogs.length === 0
+            ? "No blogs found."
+            : "No posts match your search."}
+        </div>
+      )}
+    </div>
   );
 }
 
 function AllBlogs() {
-  const { blogs } = useBlogs();
-  return <BlogList blogs={blogs} />;
-}
+  const { blogs, loading, error } = useBlogs();
 
-function MyBlogs() {
-  const { blogs, loading, removeBlog } = useMyBlogs();
   return (
     <BlogList
       blogs={blogs}
       loading={loading}
-      onDelete={removeBlog}
-      empty={
-        <div className="py-16 text-center">
-          <p className="font-medium">You haven&apos;t published anything yet</p>
-          <p className="mt-1 text-sm text-muted-foreground">Write your first post and it will show up here.</p>
-          <Button asChild className="mt-4">
-            <Link to="/publish">
-              <PenSquare className="size-4" />
-              New post
-            </Link>
-          </Button>
-        </div>
-      }
+      error={error}
     />
   );
 }
 
-const Blogs = () => {
-  const [params] = useSearchParams();
+function MyBlogs() {
+  const { blogs, loading, error, removeBlog } = useMyBlogs();
+
+  return (
+    <>
+      <div className="mt-5">
+        <Button asChild>
+          <Link to="/publish">
+            <PenSquare className="mr-2 size-4" />
+            New blog
+          </Link>
+        </Button>
+      </div>
+
+      <BlogList
+        blogs={blogs}
+        loading={loading}
+        error={error}
+        onDelete={removeBlog}
+      />
+    </>
+  );
+}
+
+export default function Blogs() {
+  const [params, setParams] = useSearchParams();
   const mine = params.get("view") === "mine";
 
   return (
     <DashboardLayout>
-      <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6">
-        <h1 className="font-serif text-3xl font-semibold tracking-tight sm:text-4xl">{mine ? "My blogs" : "All blogs"}</h1>
-        {/* key resets the search box when switching views */}
-        {mine ? <MyBlogs key="mine" /> : <AllBlogs key="all" />}
-      </div>
+      <main className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="font-serif text-3xl font-semibold sm:text-4xl">
+            {mine ? "My blogs" : "All blogs"}
+          </h1>
+
+          <div className="flex gap-2">
+            <Button
+              variant={mine ? "outline" : "default"}
+              onClick={() => setParams({})}
+            >
+              All blogs
+            </Button>
+
+            <Button
+              variant={mine ? "default" : "outline"}
+              onClick={() => setParams({ view: "mine" })}
+            >
+              My blogs
+            </Button>
+          </div>
+        </div>
+
+        {mine ? <MyBlogs /> : <AllBlogs />}
+      </main>
     </DashboardLayout>
   );
-};
-
-export default Blogs;
+}

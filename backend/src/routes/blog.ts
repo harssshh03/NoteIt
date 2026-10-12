@@ -1,175 +1,300 @@
-import { Hono } from "hono";
-import { PrismaClient } from '@prisma/client/edge';
-import { withAccelerate } from '@prisma/extension-accelerate';
-import { verify } from "hono/jwt";
-import { createBlogSchema , updateBlogSchema } from "@harshchalwadi/medium-app";
 
+import { Hono } from "hono";
+import { PrismaClient } from "@prisma/client/edge";
+import { withAccelerate } from "@prisma/extension-accelerate";
+import { verify } from "hono/jwt";
+import {
+  createBlogSchema,
+  updateBlogSchema,
+} from "@harshchalwadi/medium-app";
 
 const blog = new Hono<{
   Bindings: {
     DATABASE_URL: string;
     JWT_SECRET: string;
   };
-  Variables: {
-    userId: string;
-  };
 }>();
 
+async function authenticate(c: {
+  req: { header: (name: string) => string | undefined };
+  env: { JWT_SECRET: string };
+}) {
+  const header = c.req.header("Authorization");
 
-interface PostType {
-  title: string;
-  content: string;
-}
+  if (!header?.startsWith("Bearer ")) {
+    return null;
+  }
 
-interface UpdateType {
-  id: number;
-  title: string;
-  content: string;
-}
+  const token = header.slice(7).trim();
 
+  if (!token) {
+    return null;
+  }
 
+  try {
+    const payload = await verify(token, c.env.JWT_SECRET, "HS256");
 
-blog.use('/*', async (c, next) => {
-  const header = await c.req.header("Authorization");
-
-  if (header?.startsWith("Bearer ")) {
-    const token = header.split(" ")[1];
-    const decoded = await verify(token, c.env.JWT_SECRET);
-
-    if (decoded && decoded.id) {
-      c.set("userId", decoded.id as string);
+    if (payload.id === undefined || payload.id === null) {
+      return null;
     }
-    return await next();
-  } else {
-    return c.json({ msg: "Invalid token" }, 404);
+
+    const userId = Number(payload.id);
+
+    return Number.isSafeInteger(userId) && userId > 0
+      ? userId
+      : null;
+  } catch {
+    return null;
   }
-});
+}
 
-
-blog.post("/", async (c) => {
-  const prisma = new PrismaClient({
-    datasourceUrl: c.env.DATABASE_URL
-  }).$extends(withAccelerate());  
-
-  const body = await c.req.json();
-  const parsed = createBlogSchema.safeParse(body);
-  const authorId = c.get("userId");
-
-  if (!parsed.success) {
-    return c.json({ msg: "Invalid blog" }, 400);
-  }
-
-  try {
-    const { title, content  }: PostType = parsed.data;
-
-    const blog = await prisma.post.create({
-      data: {
-        title,
-        content,
-        authorId: parseInt(authorId), 
-      }
-    });
-
-    return c.json({ msg: "Blog created successfully", blog }, 201);
-
-  } catch (e) {
-    return c.json({ msg: "Invalid credentials" }, 404);
-  }
-});
-
-
-blog.put("/", async (c) => {
-  const prisma = new PrismaClient({
-    datasourceUrl: c.env.DATABASE_URL
+function getPrisma(databaseUrl: string) {
+  return new PrismaClient({
+    datasourceUrl: databaseUrl,
   }).$extends(withAccelerate());
+}
 
-  const body = await c.req.json();
-  const parsed = updateBlogSchema.safeParse(body);
-
-  if (!parsed.success) {
-    return c.json({ msg: "Invalid blog" }, 400);
-  }
-
-  try {
-    const { id, title, content }: UpdateType = parsed.data;
-
-    const blog = await prisma.post.update({
-      where: { id: Number(id) },
-      data: {
-        title,
-        content,
-      }
-    });
-
-    return c.json({ msg: "Updated the blog", blog }, 200);
-
-  } catch (e) {
-    return c.json({ msg: "Invalid credentials" }, 404);
-  }
-});
-
-
+// GET /api/v1/blog/bulk — public
 blog.get("/bulk", async (c) => {
-  const prisma = new PrismaClient({
-    datasourceUrl: c.env.DATABASE_URL
-  }).$extends(withAccelerate());
-
   try {
+    const prisma = getPrisma(c.env.DATABASE_URL);
 
     const blogs = await prisma.post.findMany({
-      select:{
-        title : true,
-        id : true, 
-        content : true,
-        publishedDate : true,
-        author:{
-          select:{
-            name : true
-          }
-        }
-      }
+      where: { published: true },
+      orderBy: { publishedDate: "desc" },
+      select: {
+        id: true,
+        title: true,
+        content: true,
+        published: true,
+        publishedDate: true,
+        author: {
+          select: { name: true },
+        },
+      },
     });
-    return c.json({ blogs }, 200);
-    
-  } catch (e) {
+
+    return c.json({ blogs });
+  } catch (error) {
+    console.error("GET /bulk failed:", error);
     return c.json({ msg: "Failed to fetch blogs" }, 500);
   }
 });
 
+// GET /api/v1/blog/me — authenticated user's blogs
+blog.get("/me", async (c) => {
+  const userId = await authenticate(c);
 
-blog.get("/:id", async (c) => {
-  const prisma = new PrismaClient({
-    datasourceUrl: c.env.DATABASE_URL
-  }).$extends(withAccelerate());
-
-  const id = Number(c.req.param("id"));
+  if (userId === null) {
+    return c.json({ msg: "Invalid or missing token" }, 401);
+  }
 
   try {
-    const blog = await prisma.post.findUnique({
-      where: {
-        id
-      }, 
-      select:{
-        id : true,
-        title : true,
-        content : true,
-        publishedDate : true,
-        author:{
-          select:{
-            name :true
-          }
+    const prisma = getPrisma(c.env.DATABASE_URL);
+
+    const blogs = await prisma.post.findMany({
+      where: { authorId: userId },
+      orderBy: { publishedDate: "desc" },
+      select: {
+        id: true,
+        title: true,
+        content: true,
+        published: true,
+        publishedDate: true,
+        author: {
+          select: { name: true },
         },
-      }
+      },
     });
 
-    return c.json({ blog }, 200);
-
-  } catch (e) {
-    return c.json({ msg: "Invalid credentials" }, 404);
+    return c.json({ blogs });
+  } catch (error) {
+    console.error("GET /me failed:", error);
+    return c.json({ msg: "Failed to fetch your blogs" }, 500);
   }
 });
 
+// POST /api/v1/blog — create blog
+blog.post("/", async (c) => {
+  const userId = await authenticate(c);
 
+  if (userId === null) {
+    return c.json({ msg: "Invalid or missing token" }, 401);
+  }
 
+  try {
+    const body = await c.req.json();
+    const parsed = createBlogSchema.safeParse(body);
+
+    if (!parsed.success) {
+      return c.json({ msg: "Invalid blog data" }, 400);
+    }
+
+    const prisma = getPrisma(c.env.DATABASE_URL);
+
+    const createdBlog = await prisma.post.create({
+      data: {
+        title: parsed.data.title,
+        content: parsed.data.content,
+        authorId: userId,
+        published: true,
+      },
+    });
+
+    return c.json(
+      {
+        msg: "Blog created successfully",
+        blog: createdBlog,
+      },
+      201
+    );
+  } catch (error) {
+    console.error("POST /blog failed:", error);
+    return c.json({ msg: "Failed to create blog" }, 500);
+  }
+});
+
+// PUT /api/v1/blog — update blog
+blog.put("/", async (c) => {
+  const userId = await authenticate(c);
+
+  if (userId === null) {
+    return c.json({ msg: "Invalid or missing token" }, 401);
+  }
+
+  try {
+    const body = await c.req.json();
+    const parsed = updateBlogSchema.safeParse(body);
+
+    if (!parsed.success) {
+      return c.json({ msg: "Invalid blog data" }, 400);
+    }
+
+    const prisma = getPrisma(c.env.DATABASE_URL);
+    const { id, title, content } = parsed.data;
+
+    const existingBlog = await prisma.post.findFirst({
+      where: {
+        id: Number(id),
+        authorId: userId,
+      },
+    });
+
+    if (!existingBlog) {
+      return c.json({ msg: "Blog not found or access denied" }, 404);
+    }
+
+    const updatedBlog = await prisma.post.update({
+      where: { id: Number(id) },
+      data: { title, content },
+    });
+
+    return c.json({
+      msg: "Blog updated successfully",
+      blog: updatedBlog,
+    });
+  } catch (error) {
+    console.error("PUT /blog failed:", error);
+    return c.json({ msg: "Failed to update blog" }, 500);
+  }
+});
+
+// DELETE /api/v1/blog/:id — only author can delete
+blog.delete("/:id", async (c) => {
+  const userId = await authenticate(c);
+
+  if (userId === null) {
+    return c.json({ msg: "Invalid or missing token" }, 401);
+  }
+
+  const id = Number(c.req.param("id"));
+
+  if (!Number.isSafeInteger(id) || id <= 0) {
+    return c.json({ msg: "Invalid blog ID" }, 400);
+  }
+
+  try {
+    const prisma = getPrisma(c.env.DATABASE_URL);
+
+    const existingBlog = await prisma.post.findFirst({
+      where: {
+        id,
+        authorId: userId,
+      },
+    });
+
+    if (!existingBlog) {
+      return c.json({ msg: "Blog not found or access denied" }, 404);
+    }
+
+    await prisma.post.delete({ where: { id } });
+
+    return c.json({ msg: "Blog deleted successfully" });
+  } catch (error) {
+    console.error("DELETE /blog/:id failed:", error);
+    return c.json({ msg: "Failed to delete blog" }, 500);
+  }
+});
+
+// GET /api/v1/blog/:id — public blog detail
+blog.get("/:id", async (c) => {
+  const id = Number(c.req.param("id"));
+
+  if (!Number.isSafeInteger(id) || id <= 0) {
+    return c.json({ msg: "Invalid blog ID" }, 400);
+  }
+
+  try {
+    const prisma = getPrisma(c.env.DATABASE_URL);
+
+    const foundBlog = await prisma.post.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        title: true,
+        content: true,
+        published: true,
+        publishedDate: true,
+        author: {
+          select: { name: true },
+        },
+      },
+    });
+
+    if (!foundBlog || !foundBlog.published) {
+      return c.json({ msg: "Blog not found" }, 404);
+    }
+
+    return c.json({ blog: foundBlog });
+  } catch (error) {
+    console.error("GET /blog/:id failed:", error);
+    return c.json({ msg: "Failed to fetch blog" }, 500);
+  }
+});
+blog.get("/bulk", async (c) => {
+  try {
+    const prisma = getPrisma(c.env.DATABASE_URL);
+
+    const blogs = await prisma.post.findMany({
+      where: { published: true },
+      orderBy: { publishedDate: "desc" },
+      select: {
+        id: true,
+        title: true,
+        content: true,
+        published: true,
+        publishedDate: true,
+        author: {
+          select: { name: true },
+        },
+      },
+    });
+
+    return c.json({ blogs });
+  } catch (error) {
+    console.error("GET /bulk failed:", error);
+    return c.json({ msg: "Failed to fetch blogs" }, 500);
+  }
+});
 
 export default blog;

@@ -9,6 +9,7 @@
     "@harshchalwadi/medium-app": "^1.2.0",
     "@prisma/client": "^6.10.1",
     "@prisma/extension-accelerate": "^2.0.1",
+    "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
     "hono": "^4.7.11",
     "zod": "^3.25.64"

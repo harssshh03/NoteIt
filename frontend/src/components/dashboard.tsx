@@ -1,51 +1,101 @@
 import { useState, type ReactNode } from "react";
-import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { LogOut, Menu, PenSquare } from "lucide-react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { LogIn, LogOut, Menu, PenSquare } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { HookSidebar } from "@/components/ui/hook-sidebar";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Logo } from "@/components/logo";
 import { ThemeToggle } from "@/components/themetoggle";
 import { APP_NAME, BRAND_COLOR } from "@/lib/brand";
+import { useAuth } from "@/context/auth";
 
-const ITEMS = [{ label: "All blogs" }, { label: "My blogs" }, { label: "New post" }];
-const ROUTES = ["/blogs", "/blogs?view=mine", "/publish"];
+const PUBLIC_ITEMS = [{ label: "All blogs", to: "/blogs" }];
+const PRIVATE_ITEMS = [
+  { label: "All blogs", to: "/blogs" },
+  { label: "My blogs", to: "/my-blogs" },
+  { label: "New post", to: "/publish" },
+];
 
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const { pathname } = useLocation();
-  const [params] = useSearchParams();
   const navigate = useNavigate();
+  const { token, user, signout } = useAuth();
 
-  const active = pathname === "/publish" ? 2 : pathname === "/blogs" && params.get("view") === "mine" ? 1 : 0;
+  const items = token ? PRIVATE_ITEMS : PUBLIC_ITEMS;
+
+  const found = items.findIndex((i) =>
+    i.to === "/blogs" ? pathname === "/blogs" || pathname.startsWith("/blog/") : pathname.startsWith(i.to)
+  );
+  const active = found === -1 ? 0 : found;
 
   function go(index: number) {
-    navigate(ROUTES[index]);
+    navigate(items[index].to);
     onNavigate?.();
   }
 
-  function signOut() {
-    localStorage.removeItem("token");
+  function handleSignout() {
+    signout();
     onNavigate?.();
-    navigate("/signin");
+    navigate("/", { replace: true });
   }
 
   return (
     <div className="flex h-full flex-col">
-      <Link to="/blogs" onClick={onNavigate} className="flex items-center gap-2 px-4 py-4 font-semibold">
+      <Link
+        to="/blogs"
+        onClick={onNavigate}
+        className="flex items-center gap-2 px-4 py-4 font-semibold"
+      >
         <Logo className="size-7" />
         {APP_NAME}
       </Link>
 
       <div className="flex-1 px-4 pt-2">
-        <HookSidebar  label="Workspace" items={ITEMS} value={active} onChange={go} color={BRAND_COLOR} />
+        <HookSidebar
+          label="Workspace"
+          items={items.map(({ label }) => ({ label }))}
+          value={active}
+          onChange={go}
+          color={BRAND_COLOR}
+        />
       </div>
 
-      <div className="flex items-center justify-between gap-1 border-t p-3">
-        <Button variant="ghost" className="justify-start gap-3 cursor-pointer text-muted-foreground" onClick={signOut}>
-          <LogOut className="size-4" />
-          Sign out
-        </Button>
-        <ThemeToggle />
+      <div className="space-y-2 border-t p-3">
+        {token ? (
+          <>
+            {user && (
+              <div className="px-3 pb-1">
+                <p className="truncate text-sm font-medium">{user.name}</p>
+                <p className="truncate text-xs text-muted-foreground">{user.email}</p>
+              </div>
+            )}
+            <div className="flex items-center justify-between gap-1">
+              <Button
+                variant="ghost"
+                className="cursor-pointer justify-start gap-3 text-muted-foreground"
+                onClick={handleSignout}
+              >
+                <LogOut className="size-4" />
+                Sign out
+              </Button>
+              <ThemeToggle />
+            </div>
+          </>
+        ) : (
+          <div className="flex items-center gap-2">
+            <Button asChild className="flex-1" onClick={onNavigate}>
+              <Link to="/signin">
+                <LogIn className="size-4" />
+                Sign in
+              </Link>
+            </Button>
+            <Button asChild variant="outline" className="flex-1" onClick={onNavigate}>
+              <Link to="/signup">Sign up</Link>
+            </Button>
+            <ThemeToggle />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -53,15 +103,14 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 
 export function DashboardLayout({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
+  const { token } = useAuth();
 
   return (
     <div className="min-h-dvh bg-background">
-      {/* Desktop sidebar */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r bg-background lg:block">
         <SidebarContent />
       </aside>
 
-      {/* Mobile top bar */}
       <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b bg-background/80 px-4 backdrop-blur lg:hidden">
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger asChild>
@@ -82,15 +131,19 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
 
         <div className="flex items-center">
           <ThemeToggle />
-          <Button asChild size="icon" variant="ghost" aria-label="New post">
-            <Link to="/publish">
-              <PenSquare className="size-5" />
-            </Link>
-          </Button>
+          {token && (
+            <Button asChild size="icon" variant="ghost" aria-label="New post">
+              <Link to="/publish">
+                <PenSquare className="size-5" />
+              </Link>
+            </Button>
+          )}
         </div>
       </header>
 
-      <main className="flex min-h-[calc(100dvh-3.5rem)] flex-col lg:min-h-dvh lg:pl-64">{children}</main>
+      <main className="flex min-h-[calc(100dvh-3.5rem)] flex-col lg:min-h-dvh lg:pl-64">
+        {children}
+      </main>
     </div>
   );
 }

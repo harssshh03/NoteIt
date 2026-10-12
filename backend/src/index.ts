@@ -1,41 +1,39 @@
-import { Hono } from 'hono'
-import user from './routes/user'
-import blog from './routes/blog'
-import middleware from './middleware'
-import { cors } from 'hono/cors'
 
-const app = new Hono()
+import { Hono } from "hono";
+import { cors } from "hono/cors";
+
+import user from "./routes/user";
+import blog from "./routes/blog";
+
+const app = new Hono<{
+  Bindings: {
+    DATABASE_URL: string;
+    JWT_SECRET: string;
+  };
+}>();
 
 const allowedOrigins = [
-  'http://localhost:3000',
-  'http://localhost:5173',
-  'https://kagaz.harssh.xyz',
-  'https://harrsh.xyz',
-  'https://kagazz-app.vercel.app',
-]
+  "http://localhost:3000",
+  "http://localhost:5173",
+  "https://kagaz.harssh.xyz",
+  "https://harrsh.xyz",
+  "https://kagazz-app.vercel.app",
+];
 
 app.use(
-  '/*',
+  "*",
   cors({
-    origin: (origin) => {
-      if (!origin) return ''
-      const clean = origin.replace(/\/$/, '')
-      return allowedOrigins.includes(clean) ? clean : ''
-    },
+    origin: (origin) =>
+      allowedOrigins.includes(origin) ? origin : "",
     credentials: true,
-    allowHeaders: ['Authorization', 'Content-Type'],
-    allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowHeaders: ["Authorization", "Content-Type"],
+    allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   })
-)
+);
 
-app.options('/*', (c) => {
-  return c.text('OK', 204)
-})
+app.route("/api/v1/user", user);
+app.route("/api/v1/blog", blog);
 
-app.route('/api/v1/user', user)
-app.route('/api/v1/blog', blog)
-app.route('/api/v1/', middleware)
+app.get("/", (c) => c.text("Post here .."));
 
-app.get('/', (c) => c.text('Post here ..'))
-
-export default app
+export default app;
