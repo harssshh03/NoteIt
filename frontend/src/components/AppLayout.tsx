@@ -43,7 +43,11 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
 
   return (
     <div className="flex h-full flex-col">
-      <Link to="/" onClick={onNavigate} className="flex items-center gap-2 px-4 py-4 font-semibold">
+      <Link
+        to="/"
+        onClick={onNavigate}
+        className="flex items-center gap-2 px-4 py-4 font-semibold"
+      >
         <Logo className="size-7" />
         {APP_NAME}
       </Link>
@@ -68,7 +72,11 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
               </div>
             )}
             <div className="flex items-center justify-between">
-              <Button variant="ghost" className="gap-3 text-muted-foreground" onClick={handleSignout}>
+              <Button
+                variant="ghost"
+                className="gap-3 text-muted-foreground"
+                onClick={handleSignout}
+              >
                 <LogOut className="size-4" />
                 Sign out
               </Button>
@@ -97,44 +105,53 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
 export default function AppLayout() {
   const [open, setOpen] = useState(false);
   const { token } = useAuth();
+  const { pathname } = useLocation();
+
+  // editor pages have their own top bar, so hide the app bar on mobile
+  const isEditor = pathname === "/publish" || pathname.endsWith("/edit");
 
   return (
     <div className="min-h-dvh bg-background">
+      {/* desktop sidebar */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r bg-background lg:block">
         <Sidebar />
       </aside>
 
-      <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b bg-background/80 px-4 backdrop-blur lg:hidden">
-        <Sheet open={open} onOpenChange={setOpen}>
-          <SheetTrigger asChild>
-            <Button variant="ghost" size="icon" aria-label="Open menu">
-              <Menu className="size-5" />
-            </Button>
-          </SheetTrigger>
-          <SheetContent side="left" className="w-64 p-0">
-            <SheetTitle className="sr-only">Menu</SheetTitle>
-            <Sidebar onNavigate={() => setOpen(false)} />
-          </SheetContent>
-        </Sheet>
+      {/* mobile top bar (no logo) */}
+      {!isEditor && (
+        <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b bg-background/80 px-4 backdrop-blur lg:hidden">
+          <Sheet open={open} onOpenChange={setOpen}>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" aria-label="Open menu">
+                <Menu className="size-5" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="w-64 p-0">
+              <SheetTitle className="sr-only">Menu</SheetTitle>
+              <Sidebar onNavigate={() => setOpen(false)} />
+            </SheetContent>
+          </Sheet>
 
-        <Link to="/" className="flex items-center gap-2 font-semibold">
-          <Logo className="size-6" />
-          <span className="text-sm">{APP_NAME}</span>
-        </Link>
+          <div className="flex items-center">
+            <ThemeToggle />
+            {token && (
+              <Button asChild size="icon" variant="ghost" aria-label="New post">
+                <Link to="/publish">
+                  <PenSquare className="size-5" />
+                </Link>
+              </Button>
+            )}
+          </div>
+        </header>
+      )}
 
-        <div className="flex items-center">
-          <ThemeToggle />
-          {token && (
-            <Button asChild size="icon" variant="ghost" aria-label="New post">
-              <Link to="/publish">
-                <PenSquare className="size-5" />
-              </Link>
-            </Button>
-          )}
-        </div>
-      </header>
-
-      <main className="flex min-h-[calc(100dvh-3.5rem)] flex-col lg:min-h-dvh lg:pl-64">
+      <main
+        className={
+          isEditor
+            ? "flex min-h-dvh flex-col lg:pl-64"
+            : "flex min-h-[calc(100dvh-3.5rem)] flex-col lg:min-h-dvh lg:pl-64"
+        }
+      >
         <Outlet />
       </main>
     </div>
