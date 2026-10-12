@@ -1,149 +1,66 @@
-
-import { useCallback, useEffect, useState } from "react";
-import axios from "axios";
-import { BACKEND_URL } from "@/lib/config";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { api, errorMessage } from "@/lib/api";
 
 export interface Blog {
-  id: string;
+  id: number;
   title: string;
   content: string;
+  published: boolean;
   publishedDate: string;
-  published?: boolean;
-  author?: {
-    name: string | null;
-  };
+  authorId?: number;
+  author: { name: string | null } | null;
 }
 
-interface BlogResponse {
-  blog: {
-    id: number | string;
-    title: string;
-    content: string;
-    publishedDate: string;
-    published?: boolean;
-    author?: {
-      name: string | null;
-    };
-  } | null;
-}
-
-interface BlogsResponse {
-  blogs: Array<{
-    id: number | string;
-    title: string;
-    content: string;
-    publishedDate: string;
-    published?: boolean;
-    author?: {
-      name: string | null;
-    };
-  }>;
-}
-
-const BULK_URL = `${BACKEND_URL}/api/v1/blog/bulk`;
-
-const blogUrl = (id: string) =>
-  `${BACKEND_URL}/api/v1/blog/${encodeURIComponent(id)}`;
-
-function normalizeBlog(blog: BlogsResponse["blogs"][number]): Blog {
-  return {
-    ...blog,
-    id: String(blog.id),
-  };
-}
-
-export function useBlogs() {
-  const [blogs, setBlogs] = useState<Blog[]>([]);
-  const [loading, setLoading] = useState(true);
+/** Tiny GET helper: loading / error / data / reload. */
+function useRequest<T>(path: string | null, key: string) {
+  const [data, setData] = useState<T | null>(null);
+  const [loading, setLoading] = useState(path !== null);
   const [error, setError] = useState<string | null>(null);
+  const latest = useRef(0);
 
-  const fetchBlogs = useCallback(async () => {
+  const load = useCallback(async () => {
+    if (!path) return;
+    const run = ++latest.current;
     setLoading(true);
     setError(null);
-
     try {
-      const response = await axios.get<BlogsResponse>(BULK_URL);
-
-      if (!Array.isArray(response.data.blogs)) {
-        throw new Error("Invalid response received from the server.");
-      }
-
-      setBlogs(response.data.blogs.map(normalizeBlog));
-    } catch (err: unknown) {
-      console.error("Failed to fetch all blogs:", err);
-
-      setError(
-        axios.isAxiosError(err)
-          ? err.response?.data?.msg ?? "Failed to load blogs."
-          : err instanceof Error
-            ? err.message
-            : "Something went wrong."
-      );
+      const res = await api.get(path);
+      if (run === latest.current) setData(res.data[key]);
+    } catch (err) {
+      if (run === latest.current) setError(errorMessage(err, "Failed to load."));
     } finally {
-      setLoading(false);
+      if (run === latest.current) setLoading(false);
     }
-  }, []);
+  }, [path, key]);
 
   useEffect(() => {
-    void fetchBlogs();
-  }, [fetchBlogs]);
+    void load();
+  }, [load]);
 
-  return { blogs, loading, error, refetch: fetchBlogs };
+  return { data, setData, loading, error, reload: load };
 }
 
-export function useBlog({ id }: { id: string }) {
-  const [blog, setBlog] = useState<Blog | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+/** Public feed */
+export function useBlogs() {
+  const { data, loading, error, reload } = useRequest<Blog[]>("/blog/bulk", "blogs");
+  return { blogs: data ?? [], loading, error, refetch: reload };
+}
 
-  useEffect(() => {
-    let cancelled = false;
+/** Single blog */
+export function useBlog(id: number) {
+  const valid = Number.isInteger(id) && id > 0;
+  const { data, loading, error } = useRequest<Blog>(valid ? `/blog/${id}` : null, "blog");
+  return { blog: data, loading, error: valid ? error : "Invalid blog ID." };
+}
 
-    async function fetchBlog() {
-      setLoading(true);
-      setError(null);
-      setBlog(null);
+/** Logged-in user's blogs (+ delete) */
+export function useMyBlogs() {
+  const { data, setData, loading, error, reload } = useRequest<Blog[]>("/blog/me", "blogs");
 
-      if (!id || !/^\d+$/.test(id)) {
-        setError("Invalid blog ID.");
-        setLoading(false);
-        return;
-      }
+  async function deleteBlog(id: number) {
+    await api.delete(`/blog/${id}`);
+    setData((prev) => prev?.filter((b) => b.id !== id) ?? null);
+  }
 
-      try {
-        const response = await axios.get<BlogResponse>(blogUrl(id));
-
-        if (!response.data.blog) {
-          throw new Error("Blog not found.");
-        }
-
-        if (!cancelled) {
-          setBlog({
-            ...response.data.blog,
-            id: String(response.data.blog.id),
-          });
-        }
-      } catch (err: unknown) {
-        if (!cancelled) {
-          setError(
-            axios.isAxiosError(err)
-              ? err.response?.data?.msg ?? "Failed to load this blog."
-              : err instanceof Error
-                ? err.message
-                : "Something went wrong."
-          );
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-
-    void fetchBlog();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [id]);
-
-  return { blog, loading, error };
+  return { blogs: data ?? [], loading, error, refetch: reload, deleteBlog };
 }

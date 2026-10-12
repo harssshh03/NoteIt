@@ -1,43 +1,30 @@
-import { useState, type ReactNode } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
-import { LogIn, LogOut, Menu, PenSquare } from "lucide-react";
+import { useState } from "react";
+import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
+import { BookOpen, LogIn, LogOut, Menu, Newspaper, PenSquare } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { HookSidebar } from "@/components/ui/hook-sidebar";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Logo } from "@/components/logo";
 import { ThemeToggle } from "@/components/themetoggle";
-import { APP_NAME, BRAND_COLOR } from "@/lib/brand";
+import { APP_NAME } from "@/lib/brand";
+import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/auth";
 
-const PUBLIC_ITEMS = [{ label: "All blogs", to: "/blogs" }];
-const PRIVATE_ITEMS = [
-  { label: "All blogs", to: "/blogs" },
-  { label: "My blogs", to: "/my-blogs" },
-  { label: "New post", to: "/publish" },
+const LINKS = [
+  { to: "/blogs", label: "All blogs", icon: Newspaper, private: false },
+  { to: "/my-blogs", label: "My blogs", icon: BookOpen, private: true },
+  { to: "/publish", label: "New post", icon: PenSquare, private: true },
 ];
 
-function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
-  const { pathname } = useLocation();
-  const navigate = useNavigate();
+function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const { token, user, signout } = useAuth();
-
-  const items = token ? PRIVATE_ITEMS : PUBLIC_ITEMS;
-
-  const found = items.findIndex((i) =>
-    i.to === "/blogs" ? pathname === "/blogs" || pathname.startsWith("/blog/") : pathname.startsWith(i.to)
-  );
-  const active = found === -1 ? 0 : found;
-
-  function go(index: number) {
-    navigate(items[index].to);
-    onNavigate?.();
-  }
+  const navigate = useNavigate();
+  const links = LINKS.filter((l) => token || !l.private);
 
   function handleSignout() {
     signout();
     onNavigate?.();
-    navigate("/", { replace: true });
+    navigate("/blogs", { replace: true });
   }
 
   return (
@@ -45,35 +32,47 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       <Link
         to="/blogs"
         onClick={onNavigate}
-        className="flex items-center gap-2 px-4 py-4 font-semibold"
+        className="flex items-center gap-2 px-5 py-5 font-semibold"
       >
         <Logo className="size-7" />
         {APP_NAME}
       </Link>
 
-      <div className="flex-1 px-4 pt-2">
-        <HookSidebar
-          label="Workspace"
-          items={items.map(({ label }) => ({ label }))}
-          value={active}
-          onChange={go}
-          color={BRAND_COLOR}
-        />
-      </div>
+      <nav className="flex-1 space-y-1 px-3">
+        {links.map(({ to, label, icon: Icon }) => (
+          <NavLink
+            key={to}
+            to={to}
+            end
+            onClick={onNavigate}
+            className={({ isActive }) =>
+              cn(
+                "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                isActive
+                  ? "bg-muted text-foreground"
+                  : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+              )
+            }
+          >
+            <Icon className="size-4" />
+            {label}
+          </NavLink>
+        ))}
+      </nav>
 
-      <div className="space-y-2 border-t p-3">
+      <div className="space-y-3 border-t p-3">
         {token ? (
           <>
             {user && (
-              <div className="px-3 pb-1">
+              <div className="px-2">
                 <p className="truncate text-sm font-medium">{user.name}</p>
                 <p className="truncate text-xs text-muted-foreground">{user.email}</p>
               </div>
             )}
-            <div className="flex items-center justify-between gap-1">
+            <div className="flex items-center justify-between">
               <Button
                 variant="ghost"
-                className="cursor-pointer justify-start gap-3 text-muted-foreground"
+                className="gap-3 text-muted-foreground"
                 onClick={handleSignout}
               >
                 <LogOut className="size-4" />
@@ -101,16 +100,18 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   );
 }
 
-export function DashboardLayout({ children }: { children: ReactNode }) {
+export default function AppLayout() {
   const [open, setOpen] = useState(false);
   const { token } = useAuth();
 
   return (
     <div className="min-h-dvh bg-background">
+      {/* desktop sidebar */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r bg-background lg:block">
-        <SidebarContent />
+        <Sidebar />
       </aside>
 
+      {/* mobile top bar */}
       <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b bg-background/80 px-4 backdrop-blur lg:hidden">
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger asChild>
@@ -120,7 +121,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
           </SheetTrigger>
           <SheetContent side="left" className="w-64 p-0">
             <SheetTitle className="sr-only">Menu</SheetTitle>
-            <SidebarContent onNavigate={() => setOpen(false)} />
+            <Sidebar onNavigate={() => setOpen(false)} />
           </SheetContent>
         </Sheet>
 
@@ -142,10 +143,8 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
       </header>
 
       <main className="flex min-h-[calc(100dvh-3.5rem)] flex-col lg:min-h-dvh lg:pl-64">
-        {children}
+        <Outlet />
       </main>
     </div>
   );
 }
-
-export default DashboardLayout;

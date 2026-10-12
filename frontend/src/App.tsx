@@ -1,11 +1,12 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
-import { AuthProvider } from "@/context/auth";
-import { ProtectedRoute, PublicOnlyRoute } from "@/routes/ProtectedRoute";
 
-import Landing from "@/pages/Landing";
+import { AuthProvider } from "@/context/auth";
+import { GuestOnly, RequireAuth } from "@/routes/guards";
+import AppLayout from "@/components/AppLayout";
+
 import Blogs from "@/pages/Blogs";
 import BlogPage from "@/pages/Blog";
-import Dashboard from "@/pages/Dashboard";
+import MyBlogs from "@/pages/MyBlogs";
 import Publish from "@/pages/Publish";
 import EditBlog from "@/pages/EditBlog";
 import Signin from "@/pages/Signin";
@@ -17,22 +18,23 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <Routes>
-          {/* public */}
-          <Route path="/" element={<Landing />} />
-          <Route path="/blogs" element={<Blogs />} />
-          <Route path="/blog/:id" element={<BlogPage />} />
+          {/* pages that share the sidebar layout */}
+          <Route element={<AppLayout />}>
+            <Route path="/" element={<Navigate to="/blogs" replace />} />
+            <Route path="/blogs" element={<Blogs />} />
+            <Route path="/blog/:id" element={<BlogPage />} />
 
-          {/* only when logged out */}
-          <Route element={<PublicOnlyRoute />}>
-            <Route path="/signin" element={<Signin />} />
-            <Route path="/signup" element={<Signup />} />
+            <Route element={<RequireAuth />}>
+              <Route path="/my-blogs" element={<MyBlogs />} />
+              <Route path="/publish" element={<Publish />} />
+              <Route path="/blog/:id/edit" element={<EditBlog />} />
+            </Route>
           </Route>
 
-          {/* only when logged in */}
-          <Route element={<ProtectedRoute />}>
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/publish" element={<Publish />} />
-            <Route path="/blog/:id/edit" element={<EditBlog />} />
+          {/* full-screen auth pages */}
+          <Route element={<GuestOnly />}>
+            <Route path="/signin" element={<Signin />} />
+            <Route path="/signup" element={<Signup />} />
           </Route>
 
           <Route path="*" element={<NotFound />} />

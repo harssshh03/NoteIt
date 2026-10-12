@@ -1,12 +1,11 @@
-
 import { useState } from "react";
 import type { FormEvent } from "react";
 import type { SigninType } from "@harshchalwadi/medium-app";
-import axios from "axios";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 
-import { BACKEND_URL } from "@/lib/config";
+import { api, errorMessage } from "@/lib/api";
+import { useAuth } from "@/context/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,15 +22,11 @@ import {
 } from "@/components/ui/card";
 
 export default function Signin() {
-  const navigate = useNavigate();
+  const { signin } = useAuth();
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
-  const [form, setForm] = useState<SigninType>({
-    email: "",
-    password: "",
-  });
+  const [form, setForm] = useState<SigninType>({ email: "", password: "" });
 
   async function sendRequest(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -39,34 +34,19 @@ export default function Signin() {
     setError("");
 
     try {
-      const response = await axios.post(
-        `${BACKEND_URL}/api/v1/user/signin`,
-        form
-      );
-
+      const response = await api.post("/user/signin", form);
       const token: unknown = response.data?.token;
 
       if (typeof token !== "string" || !token.trim()) {
         throw new Error("Server did not return a valid token.");
       }
 
-      localStorage.setItem("token", token);
-
-      navigate("/blogs", { replace: true });
+      // GuestOnly sees the new token and redirects automatically
+      signin(token, response.data?.user);
     } catch (err: unknown) {
-      localStorage.removeItem("token");
-
-      if (axios.isAxiosError(err)) {
-        setError(
-          err.response?.data?.msg ??
-            "Unable to sign in. Check your connection and try again."
-        );
-      } else if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError("Something went wrong. Please try again.");
-      }
-    } finally {
+      setError(
+        errorMessage(err, "Unable to sign in. Check your connection and try again.")
+      );
       setLoading(false);
     }
   }
@@ -75,7 +55,7 @@ export default function Signin() {
     <main className="flex min-h-screen w-full flex-col items-center justify-center px-4 py-8">
       <div className="mb-4 w-full max-w-sm">
         <Link
-          to="/"
+          to="/blogs"
           className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="h-5 w-5" />
@@ -86,10 +66,7 @@ export default function Signin() {
       <Card className="w-full max-w-sm">
         <CardHeader>
           <CardTitle>Sign in to your account</CardTitle>
-          <CardDescription>
-            Enter your email and password to continue.
-          </CardDescription>
-
+          <CardDescription>Enter your email and password to continue.</CardDescription>
           <CardAction>
             <Button variant="link" asChild>
               <Link to="/signup">Sign Up</Link>
@@ -109,12 +86,7 @@ export default function Signin() {
                   placeholder="you@example.com"
                   value={form.email}
                   required
-                  onChange={(e) =>
-                    setForm((previous) => ({
-                      ...previous,
-                      email: e.target.value,
-                    }))
-                  }
+                  onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
                 />
               </div>
 
@@ -125,12 +97,7 @@ export default function Signin() {
                   autoComplete="current-password"
                   value={form.password}
                   required
-                  onChange={(e) =>
-                    setForm((previous) => ({
-                      ...previous,
-                      password: e.target.value,
-                    }))
-                  }
+                  onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))}
                 />
               </div>
 
@@ -143,11 +110,7 @@ export default function Signin() {
           </CardContent>
 
           <CardFooter className="mt-4">
-            <Button
-              type="submit"
-              disabled={loading}
-              className="w-full"
-            >
+            <Button type="submit" disabled={loading} className="w-full">
               {loading && <Spinner />}
               {loading ? "Signing in..." : "Sign in"}
             </Button>
