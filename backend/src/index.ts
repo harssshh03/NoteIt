@@ -15,9 +15,9 @@ const app = new Hono<{
 const allowedOrigins = [
   "http://localhost:3000",
   "http://localhost:5173",
-  "https://kagaz.harssh.xyz",
+  "https://noteit.harssh.xyz",
   "https://harrsh.xyz",
-  "https://kagazz-app.vercel.app",
+  "https://note-it.vercel.app",
 ];
 
 app.use(

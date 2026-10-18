@@ -97,6 +97,11 @@ export function BlogEditor({
       </div>
 
       <div className="mx-auto w-full max-w-3xl flex-1 px-4 py-10 sm:px-6">
+        {/*
+          Borderless, background-less fields.
+          `dark:bg-transparent` is needed because shadcn's Input/Textarea ship
+          with `dark:bg-input/30`, which `bg-transparent` alone doesn't override.
+        */}
         <Input
           placeholder="Title"
           aria-label="Blog title"
@@ -104,7 +109,7 @@ export function BlogEditor({
           onChange={(e) => setTitle(e.target.value)}
           maxLength={200}
           autoFocus
-          className="h-auto border-0 bg-transparent px-0 py-2 font-serif text-4xl font-bold shadow-none placeholder:text-muted-foreground/40 focus-visible:ring-0 md:text-5xl"
+          className="h-auto rounded-none border-0 bg-transparent px-0 py-2 font-serif text-4xl font-bold shadow-none placeholder:text-muted-foreground/40 focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent md:text-5xl"
         />
 
         <Textarea
@@ -113,7 +118,7 @@ export function BlogEditor({
           aria-label="Blog content"
           value={content}
           onChange={(e) => setContent(e.target.value)}
-          className="mt-4 min-h-[55vh] resize-none overflow-hidden border-0 bg-transparent px-0 font-serif text-lg leading-8 shadow-none placeholder:text-muted-foreground/40 focus-visible:ring-0 md:text-xl md:leading-9"
+          className="mt-4 min-h-[55vh] resize-none overflow-hidden rounded-none border-0 bg-transparent px-0 font-serif text-lg leading-8 shadow-none placeholder:text-muted-foreground/40 focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent md:text-xl md:leading-9"
         />
 
         {error && (
