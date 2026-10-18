@@ -109,7 +109,7 @@ export function BlogEditor({
           onChange={(e) => setTitle(e.target.value)}
           maxLength={200}
           autoFocus
-          className="h-auto rounded-none border-0 bg-transparent px-0 py-2 font-serif text-4xl font-bold shadow-none placeholder:text-muted-foreground/40 focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent md:text-5xl"
+          className="h-auto rounded-none border-0 border-b border-dashed border-border bg-transparent px-0 pb-4 pt-2 font-serif text-4xl font-bold shadow-none placeholder:text-muted-foreground/40 focus-visible:border-ring/60 focus-visible:ring-0 dark:bg-transparent md:text-5xl"
         />
 
         <Textarea
@@ -118,7 +118,7 @@ export function BlogEditor({
           aria-label="Blog content"
           value={content}
           onChange={(e) => setContent(e.target.value)}
-          className="mt-4 min-h-[55vh] resize-none overflow-hidden rounded-none border-0 bg-transparent px-0 font-serif text-lg leading-8 shadow-none placeholder:text-muted-foreground/40 focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent md:text-xl md:leading-9"
+          className="mt-6 min-h-[55vh] resize-none overflow-hidden rounded-none border-0 bg-transparent px-0 font-serif text-lg leading-8 shadow-none placeholder:text-muted-foreground/40 focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent md:text-xl md:leading-9"
         />
 
         {error && (
